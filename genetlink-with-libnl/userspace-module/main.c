@@ -1,5 +1,6 @@
 #include <netlink/genl/family.h>
 #include <netlink/genl/ctrl.h>
+#include <netlink/genl/genl.h>
 #include <netlink/msg.h>
 #include <netlink/attr.h>
 #include <netlink/netlink.h>
@@ -23,7 +24,7 @@ static int recv_genl(struct nlmsghdr *nlh)
 		return NL_SKIP;
 	}
 
-	if (!attrs[TEST_ATTR_MSG]/* || !attrs[TEST_ATTR_DATA]*/) {
+	if (!attrs[TEST_ATTR_MSG] || !attrs[TEST_ATTR_DATA]) {
 		LOG_ERROR("message or data is NULL");
 		return NL_SKIP;
 	}
@@ -32,12 +33,11 @@ static int recv_genl(struct nlmsghdr *nlh)
 		message = nla_get_string(attrs[TEST_ATTR_MSG]);
 	}
 
-	// if (attrs[TEST_ATTR_DATA]) {
-	// 	data = nla_get_u32(attrs[TEST_ATTR_DATA]);
-	// }
+	if (attrs[TEST_ATTR_DATA]) {
+		data = nla_get_u32(attrs[TEST_ATTR_DATA]);
+	}
 
-	LOG_INFO("receive from kernel: message=%s.", message);
-	// LOG_INFO("receive from kernel: message=%s, data=%u.", message, data);
+	LOG_INFO("receive from kernel: message=%s, data=%u", message, data);
 
 	return NL_OK;
 }
@@ -55,6 +55,7 @@ static int recv_genl_msg(struct nl_msg *msg, UNUSED void *arg)
 			LOG_INFO("multicast from kernel");
 			return recv_genl(nlh);
 		default:
+			LOG_INFO("skip");
 			return NL_SKIP;
 	}
 }
@@ -79,7 +80,7 @@ static int send_echo_info(struct nl_sock *sock, int family_id,
 	}
 
 	NLA_PUT_STRING(msg, TEST_ATTR_MSG, str);
-	// NLA_PUT_U32(msg, TEST_ATTR_DATA, data);
+	NLA_PUT_U32(msg, TEST_ATTR_DATA, data);
 
 	return nl_send_auto(sock, msg);
 
@@ -92,10 +93,10 @@ nla_put_failure:
 int main()
 {
 	struct nl_sock *sock;
-	int family_id, group_id;
+	int family_id;
 	int ret;
-	char *str = "Hello genetlink! I am user!";
-	uint32_t data = 9527;
+	char *str = "Hello, I am userspace!";
+	uint32_t data = 20220917;
 
 	sock = nl_socket_alloc();
 	if (!sock) {
@@ -117,22 +118,8 @@ int main()
 		return EXIT_FAILURE;
 	}
 
-	// group_id = genl_ctrl_resolve_grp(sock, TEST_GENL_NAME, TEST_GENL_GROUP_NAME);
-	// if (group_id < 0) {
-	// 	LOG_ERROR("genl_ctrl_resolve_grp: couldn't resolve group id");
-	// 	nl_socket_free(sock);
-	// 	return EXIT_FAILURE;
-	// }
-
-	// ret = nl_socket_add_membership(sock, group_id);
-	// if (ret < 0) {
-	// 	LOG_ERROR("nl_socket_add_membership: couldn't join group");
-	// 	nl_socket_free(sock);
-	// 	return EXIT_FAILURE;
-	// }
-
 	nl_socket_modify_cb(sock, NL_CB_MSG_IN, NL_CB_CUSTOM, &recv_genl_msg, sock);
-
+	
 	LOG_INFO("start to send message");
 
 	ret = send_echo_info(sock, family_id, str, data);
@@ -142,13 +129,12 @@ int main()
 		return EXIT_FAILURE;
 	}
 
+	LOG_INFO("msg=%s, data=%d", str, data);
 	LOG_INFO("start to recv message");
 
-	for (;;) {
-		nl_recvmsgs_default(sock);
-	}
+	nl_recvmsgs_default(sock);
+
 
 	nl_socket_free(sock);
-
 	return EXIT_SUCCESS;
 }

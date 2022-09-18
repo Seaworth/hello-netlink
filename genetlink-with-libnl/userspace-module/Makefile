@@ -4,7 +4,7 @@ LDLIBS = -lnl-3 -lnl-genl-3
 
 INCLUDE = /usr/include/libnl3
 SOURCES = main.c
-BIN_NAME = testgenetlink
+BIN_NAME = testgenl
 TARGET = ../$(BIN_NAME)
 
 all: $(TARGET)

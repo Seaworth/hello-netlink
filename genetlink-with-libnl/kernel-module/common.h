@@ -1,9 +1,9 @@
 #ifndef __COMMON_H__
 #define __COMMON_H__
 
-#define TEST_GENL_NAME "hello_netlink" 
-// #define TEST_GENL_VERSION 0x1
-// #define TEST_GENL_GROUP_NAME "testgroup"
+#define TEST_GENL_NAME "hello_genl" 
+#define TEST_GENL_VERSION 1
+#define TEST_GENL_GROUP_NAME "genl_grp"
 
 /* commands */
 enum {
@@ -13,8 +13,6 @@ enum {
 	__TEST_CMD_MAX,
 };
 #define TEST_CMD_MAX (__TEST_CMD_MAX - 1)
-
-
 
 /* attributes */
 enum {

@@ -13,4 +13,3 @@ $(SUBDIRS):
 
 $(SUBDIRS_CLEAN): %.clean:
 	$(MAKE) -C $* clean
-
