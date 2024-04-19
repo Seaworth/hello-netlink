@@ -66,6 +66,6 @@ static void  __exit hello_netlink_exit(void)
 }
 module_exit(hello_netlink_exit);
 
-MODULE_AUTHOR("zhijun.li");
+MODULE_AUTHOR("Seaworth");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("hello netlink kernel module");
