@@ -2,12 +2,19 @@
 #include <net/netlink.h>
 #include <net/genetlink.h>
 #include <linux/ctype.h>
-
+#include <linux/kernel.h>
+#include <linux/timer.h>
 #include "common.h"
 
- static struct genl_family test_genl_family;
+/* declare function */
+ static int test_echo(struct sk_buff *skb, struct genl_info *info);
+
+/* timer for multicast */
+static struct timer_list timer;
+static const int repeat_ms = 2000;
+static struct genl_family test_genl_family;
  
- #ifdef DEBUG
+#ifdef DEBUG
 static void dump_nlmsg(struct nlmsghdr *nlh)
 {
 	int i, j, len, datalen;
@@ -81,6 +88,33 @@ static void dump_nlmsg(struct nlmsghdr *nlh)
  static struct nla_policy test_genl_policy[TEST_ATTR_MAX + 1] = {
        [TEST_ATTR_MSG] = { .type = NLA_NUL_STRING },
        [TEST_ATTR_DATA] = { .type = NLA_U32 },
+ };
+
+ /* operation definition */
+ static struct genl_ops test_genl_ops[] = {
+    {
+       .cmd = TEST_CMD_ECHO,
+       .flags = 0,
+       .policy = test_genl_policy,
+       .doit = test_echo,
+       .dumpit = NULL,
+    },
+ };
+
+/* multicast group. Choose a likely unique name. */
+struct genl_multicast_group test_mcgrps[] = {
+    { .name = "PotatoGroup" },
+};
+ /* family definition */
+ static struct genl_family test_genl_family = {
+       .hdrsize = 0,
+       .name = TEST_GENL_NAME,
+       .version = TEST_GENL_VERSION,
+       .maxattr = TEST_ATTR_MAX,
+       .ops = test_genl_ops,
+       .n_ops = ARRAY_SIZE(test_genl_ops),
+	   .mcgrps = test_mcgrps,
+	   .n_mcgrps = ARRAY_SIZE(test_mcgrps),
  };
 
 static int test_send_genl(struct genl_info *info, u8 cmd, u8 *str, u32 data)
@@ -162,26 +196,83 @@ failure:
     return ret;
  }
 
- /* operation definition */
- static struct genl_ops test_genl_ops[] = {
-    {
-       .cmd = TEST_CMD_ECHO,
-       .flags = 0,
-       .policy = test_genl_policy,
-       .doit = test_echo,
-       .dumpit = NULL,
-    },
- };
+void send_multicast(struct timer_list *t)
+{
+    struct sk_buff *skb;
+    void *msg_head;
+    unsigned char *msg = "MULTICAST TEST";
+    int error;
 
- /* family definition */
- static struct genl_family test_genl_family = {
-       .hdrsize = 0,
-       .name = TEST_GENL_NAME,
-       .version = TEST_GENL_VERSION,
-       .maxattr = TEST_ATTR_MAX,
-       .ops = test_genl_ops,
-       .n_ops = ARRAY_SIZE(test_genl_ops),
- };
+    pr_info("----- Running timer -----\n");
+
+    pr_info("Newing message.\n");
+    skb = genlmsg_new(NLMSG_GOODSIZE, GFP_KERNEL);
+    if (!skb) {
+            pr_err("genlmsg_new() failed.\n");
+            goto end;
+    }
+
+    pr_info("Adding Generic Netlink header to the message.\n");
+    msg_head = genlmsg_put(skb, 0, 0, &test_genl_family, 0, TEST_CMD_NOTIFY);
+    if (!msg_head) {
+            pr_err("genlmsg_put() failed.\n");
+            kfree_skb(skb);
+            goto end;
+    }
+
+    pr_info("Nla_putting MSG(string) attribute.\n");
+    error = nla_put_string(skb, TEST_ATTR_MSG, msg);
+    if (error) {
+            pr_err("nla_put_string() failed: %d\n", error);
+            kfree_skb(skb);
+            goto end;
+    }
+
+    pr_info("Nla_putting DATA(u32) attribute.\n");
+    error = nla_put_u32(skb, TEST_ATTR_DATA, 12345);
+    if (error) {
+            pr_err("nla_put_u32() failed: %d\n", error);
+            kfree_skb(skb);
+            goto end;
+    }
+
+    pr_info("Ending message.\n");
+    genlmsg_end(skb, msg_head);
+
+    pr_info("Multicasting message.\n");
+    /*
+     * The family has only one group, so the group ID is just the family's
+     * group offset.
+     * mcgrp_offset is supposed to be private, so use this value for debug
+     * purposes only.
+     */
+    pr_info("The group ID is %u.\n", test_genl_family.mcgrp_offset);
+    error = genlmsg_multicast_allns(&test_genl_family, skb, 0, 0, GFP_KERNEL);
+    if (error) {
+            pr_err("genlmsg_multicast_allns() failed: %d\n", error);
+            pr_err("(This can happen if nobody is listening. "
+				   "Because it's not that unexpected, "
+                   "you might want to just ignore this error.)\n");
+            goto end;
+    }
+
+    pr_info("Success.\n");
+end:
+    // Reschedule the timer to call this function again in repeat_ms
+    // milliseconds
+    mod_timer(t, jiffies + msecs_to_jiffies(repeat_ms));
+}
+
+static void init_timer(void)
+{
+    pr_info("Starting timer.\n");
+
+    // Initialize the timer and assign the callback function
+    timer_setup(&timer, send_multicast, 0);
+
+    // Set the timer to expire in repeat_ms milliseconds from now
+    mod_timer(&timer, jiffies + msecs_to_jiffies(repeat_ms));
+}
 
 static int __init test_genl_init(void)
 {
@@ -191,6 +282,7 @@ static int __init test_genl_init(void)
     if (ret)
         printk(KERN_ERR "genl_register_family err:%d\n", ret);
 
+	init_timer();
     printk(KERN_INFO "genetlink module init successful\n");
 
 	return 0;
