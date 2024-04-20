@@ -1,7 +1,8 @@
 #ifndef __COMMON_H__
 #define __COMMON_H__
 
-#define TEST_GENL_NAME "hello_genl" 
+#define TEST_GENL_NAME "hello_genl"
+#define TEST_GENL_MC_NAME "hello_mc"
 #define TEST_GENL_VERSION 1
 #define TEST_GENL_GROUP_NAME "genl_grp"
 

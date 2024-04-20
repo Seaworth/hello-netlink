@@ -7,7 +7,8 @@
 #include <linux/types.h>
 #include <linux/socket.h>
 #include <netlink/netlink.h>
-
+#include <stdio.h>
+#include <unistd.h>
 #include "logger.h"
 #include "../kernel-module/common.h"
 
@@ -17,10 +18,13 @@ static int recv_genl(struct nlmsghdr *nlh)
 {
 	char *message;
 	uint32_t data;
+	int err;
 	struct nlattr *attrs[TEST_ATTR_MAX + 1];
 
-	if (genlmsg_parse(nlh, 0, attrs, TEST_ATTR_MAX, NULL)) {
+	err = genlmsg_parse(nlh, 0, attrs, TEST_ATTR_MAX, NULL);
+	if (err) {
 		LOG_ERROR("genlmsg_parse: couldn't parse genlmsg");
+		LOG_ERROR("%s (%d)\n", nl_geterror(err), err);
 		return NL_SKIP;
 	}
 
@@ -90,7 +94,8 @@ nla_put_failure:
 	return -1;
 }
 
-int main()
+/* userspace send msg to kernel */
+static int run_client()
 {
 	struct nl_sock *sock;
 	int family_id;
@@ -133,8 +138,91 @@ int main()
 	LOG_INFO("start to recv message");
 
 	nl_recvmsgs_default(sock);
-
-
 	nl_socket_free(sock);
 	return EXIT_SUCCESS;
+}
+
+/* userspace recv msg from kernel by multicast */
+static int run_server()
+{
+	struct nl_sock *sk = NULL;
+    int group;
+    int error;
+	int cnt = 10;
+
+    sk = nl_socket_alloc();
+	if (!sk) {
+		LOG_ERROR("nl_socket_alloc: couldn't alloc nl_sock");
+		return EXIT_FAILURE;
+	}
+
+    nl_socket_disable_seq_check(sk);
+
+    error = nl_socket_modify_cb(sk, NL_CB_VALID, NL_CB_CUSTOM, recv_genl_msg, NULL);
+	if (error) {
+		LOG_ERROR("nl_socket_modify_cb err:%s (%d)\n", nl_geterror(error), error);
+		nl_socket_free(sk);
+		return EXIT_FAILURE;
+	}
+
+    error = genl_connect(sk);
+	if (error) {
+		LOG_ERROR("genl_connect err:%s (%d)\n", nl_geterror(error), error);
+		nl_socket_free(sk);
+		return EXIT_FAILURE;
+	}
+
+    /* Find the multicast group identifier and register ourselves to it. */
+    group = genl_ctrl_resolve_grp(sk, TEST_GENL_NAME, TEST_GENL_MC_NAME);
+	if (group < 0) {
+		LOG_ERROR("genl_ctrl_resolve_grp err:%s (%d)\n", nl_geterror(group), group);
+		nl_socket_free(sk);
+		return EXIT_FAILURE;
+	}
+
+    LOG_INFO("The group is %u.\n", group);
+    error = nl_socket_add_memberships(sk, group, 0);
+    if (error) {
+		LOG_ERROR("nl_socket_add_memberships err:%s (%d)\n", nl_geterror(error), error);
+		nl_socket_free(sk);
+		return EXIT_FAILURE;
+    }
+
+    /* Finally, receive the message. */
+	while (cnt--)
+    	nl_recvmsgs_default(sk);
+
+    if (sk)
+		nl_socket_free(sk);
+
+    return 0;
+}
+
+int main(int argc, char *argv[])
+{
+
+	int index;
+	int c;
+
+	// -c: client send msg to kernel
+	// -s: server recv msg from kernel by multicast
+	while ((c = getopt (argc, argv, "cs")) != -1) {
+		switch (c)
+		{
+			case 'c':
+				LOG_INFO("client mode:\n");
+				run_client();
+				break;
+			case 's':
+				LOG_INFO("server mode:\n");
+				run_server();
+				break;
+			default:
+				LOG_INFO("option is valid\n");
+		}
+	}
+
+	for (index = optind; index < argc; index++)
+		LOG_INFO("Non-option argument %s\n", argv[index]);
+	return 0;
 }

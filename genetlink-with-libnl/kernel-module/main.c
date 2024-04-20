@@ -11,7 +11,7 @@
 
 /* timer for multicast */
 static struct timer_list timer;
-static const int repeat_ms = 2000;
+static const int repeat_ms = 2000*10;
 static struct genl_family test_genl_family;
  
 #ifdef DEBUG
@@ -103,7 +103,7 @@ static void dump_nlmsg(struct nlmsghdr *nlh)
 
 /* multicast group. Choose a likely unique name. */
 struct genl_multicast_group test_mcgrps[] = {
-    { .name = "PotatoGroup" },
+    { .name = TEST_GENL_MC_NAME },
 };
  /* family definition */
  static struct genl_family test_genl_family = {
@@ -295,6 +295,7 @@ static void __exit test_genl_exit(void)
     if (ret)
         printk(KERN_ERR "genl_unregister_family err:%d\n", ret);
 
+    del_timer(&timer);
     printk(KERN_INFO "genetlink module exit successful\n");
 }
 
