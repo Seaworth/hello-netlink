@@ -11,7 +11,7 @@
 
 /* timer for multicast */
 static struct timer_list timer;
-static const int repeat_ms = 2000*10;
+static const int repeat_ms = 1000*10; //10s
 static struct genl_family test_genl_family;
  
 #ifdef DEBUG
