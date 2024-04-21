@@ -46,6 +46,31 @@ ps:`dmesg -Hw`显示kernel log。
 ./testgenl -c -s
 ```
 
+#### netlink-with-socket
+
+进入`netlink-with-socket`目录执行下面命令：
+
+```
+sudo make
+```
+
+在根目录下面会产生hello_netlink.ko内核模块和netlink_client用户程序。
+在终端1中输入：
+
+```
+sudo insmod hello_netlink.ko
+dmesg -Hw
+```
+
+ps:`dmesg -Hw`显示kernel log。
+在终端2中输入：
+
+```
+./netlink_client
+```
+
+输入文本和kernel通信！
+
 ### 结果
 
 #### genetlink-with-libnl
@@ -84,31 +109,6 @@ kernel log:
 [  +0.000006] The group ID is 4.
 [  +0.000026] Success.
 ```
-
-#### netlink-with-socket
-
-进入`netlink-with-socket`目录执行下面命令：
-
-```
-sudo make
-```
-
-在根目录下面会产生hello_netlink.ko内核模块和netlink_client用户程序。
-在终端1中输入：
-
-```
-sudo insmod hello_netlink.ko
-dmesg -Hw
-```
-
-ps:`dmesg -Hw`显示kernel log。
-在终端2中输入：
-
-```
-./netlink_client
-```
-
-输入文本和kernel通信！
 
 #### netlink-with-socket
 
